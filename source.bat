@@ -11,3 +11,4 @@ rem Now we don't need to document a Windows command for activating a virtualenv.
 
 echo Executing .venv\Scripts\activate.bat for you
 .venv\Scripts\activate.bat
+fastapi dev app/app.py

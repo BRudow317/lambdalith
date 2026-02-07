@@ -1,10 +1,28 @@
 # Cloud Voyages Lambda - Multi-Service Auth Platform
 
+# Very Important Links
+- [Working with AWS CDK in Python](https://docs.aws.amazon.com/cdk/v2/guide/work-with-cdk-python.html)
+
 ## Links
 - [CDK Intro](https://docs.aws.amazon.com/cdk/v2/guide/work-with-cdk-python.html)
 - [CDK API Reference](https://docs.aws.amazon.com/cdk/api/v2/python/index.html)
+- [CDK Reference](https://docs.aws.amazon.com/cdk/v2/guide/configure-env.html)
 - [SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/using-sam-cli-configure.html)
-
+- [AWS Lambda Powertools](https://awslabs.github.io/aws-lambda-powertools-python/latest/)
+- [Powertools Python Feature List](https://awslabs.github.io/aws-lambda-powertools-python/latest/#features)
+- [FastAPI](https://fastapi.tiangolo.com/)
+  - httpx - Required if you want to use the TestClient.
+  - jinja2 - Required if you want to use the default template configuration.
+  - python-multipart
+- [Passlib](https://passlib.readthedocs.io/en/stable/)
+- [Python Cryptography](https://cryptography.io/en/latest/)
+- [Python-JOSE](https://python-jose.readthedocs.io/en/latest/)
+- [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)
+- [httpx](https://www.python-httpx.org/)
+- [Plotly](https://plotly.com/python/)
+- [Pydantic](https://pydantic-docs.helpmanual.io/)
+- [Pytest](https://docs.pytest.org/en/stable/)
+- [Black](https://black.readthedocs.io/en/stable/)
 ## Command List
 ```python
 # Initialize a new CDK project
@@ -33,11 +51,7 @@ import aws_cdk.aws_s3 as s3
 
 ```
 
-
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
-
-
-
 
 To add additional dependencies, for example other CDK libraries, just add
 them to your `requirements.txt` file and rerun the `python -m pip install -r requirements.txt`
@@ -77,17 +91,7 @@ setup(
 ```
 
 ## Python Idioms
-- `snake_case` for variables and functions
-- `PascalCase` for classes
-- **type hints** for function signatures
-- **docstrings** to document functions and classes
-- **list comprehensions** and **generator expressions** for concise code
-- **context managers** (**with** statements) for resource management
-- **logging** instead of print statements for debug output
-- **virtual environments** (venv) to manage dependencies
-- **requirements.txt** or **pyproject.toml** to specify dependencies
-- **pytest** for testing and test discovery
-- **black** or **flake8** or **ruff** for code formatting and linting
+
 - **AWS CDK constructs** to define infrastructure as code
 - **AWS SAM** for local development and testing of Lambda functions
 - **boto3** for AWS SDK interactions in Lambda functions
@@ -101,9 +105,7 @@ setup(
 - **AWS SNS** for serverless pub/sub messaging needs in Lambda functions
 - **AWS CloudWatch Events** for serverless scheduled tasks in Lambda functions
 - a trailing underscore for variable names that would otherwise conflict with Python keywords (e.g., lambda_ instead of lambda)
-- **double underscores** for “private” variables and methods in classes (e.g., __my_variable)
-- **single underscores** for “protected” variables and methods in classes (e.g., _my_variable)
-- **all caps** for constants (e.g., MAX_RETRIES)
+- using `if __name__ == "__main__":` to allow a Python file to be both imported as a module and executed as a script
 
 ---
 # Project Goals

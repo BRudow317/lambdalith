@@ -1,8 +1,7 @@
-# handler.py
-from fastapi import FastAPI
-from mangum import Mangum
-from app import app
+"""Lambda entrypoint wrapping the FastAPI app."""
 
-app(FastAPI())
+from mangum import Mangum
+
+from app.app import app
 
 handler = Mangum(app)

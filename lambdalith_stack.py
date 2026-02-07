@@ -1,19 +1,35 @@
-from aws_cdk import (
-    # Duration,
-    Stack,
-    # aws_sqs as sqs,
-)
+"""Infrastructure for the Lambdalith FastAPI Lambda."""
+
+from aws_cdk import Stack
+from aws_cdk import aws_apigateway as apigateway
+from aws_cdk import aws_lambda as lambda_
 from constructs import Construct
 
-class WStack(Stack):
+
+class LambdalithStack(Stack):
+    """CDK stack that exposes FastAPI through API Gateway."""
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # The code that defines your stack goes here
+        lambda_fn = lambda_.Function(
+            self,
+            "FastApiLambda",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            handler="handler.handler",
+            code=lambda_.Code.from_asset(
+                ".",
+                exclude=[
+                    ".venv",
+                    "cdk.out",
+                    "__pycache__",
+                    "tests",
+                ],
+            ),
+        )
 
-        # example resource
-        # queue = sqs.Queue(
-        #     self, "WQueue",
-        #     visibility_timeout=Duration.seconds(300),
-        # )
+        apigateway.LambdaRestApi(
+            self,
+            "FastApiEndpoint",
+            handler=lambda_fn,
+        )

@@ -1,16 +1,22 @@
 # lambda_pw_reset_confirm.py
 import json
-import bcrypt
-import boto3
 from datetime import datetime
 
-dynamodb = boto3.resource('dynamodb')
-users_table = dynamodb.Table('Users')
-reset_tokens_table = dynamodb.Table('PasswordResetTokens')
+import bcrypt
+import boto3
 
-def pw_reset_confirm():
-    """Reset password using valid token"""
+def _get_tables():
+    dynamodb = boto3.resource("dynamodb")
+    return (
+        dynamodb.Table("Users"),
+        dynamodb.Table("PasswordResetTokens"),
+    )
+
+def pw_reset_confirm(event):
+    """Reset password using valid token."""
     try:
+        users_table, reset_tokens_table = _get_tables()
+
         body = json.loads(event['body'])
         reset_token = body.get('token', '')
         new_password = body.get('new_password', '')

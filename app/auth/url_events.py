@@ -1,5 +1,8 @@
 # Function URL event structure
-def url_events():
+import json
+
+
+def url_events(event):
     # Headers
     headers = event.get('headers', {})
     api_key = headers.get('x-api-key', '')

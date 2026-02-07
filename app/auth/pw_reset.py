@@ -1,22 +1,28 @@
 # password_reset_request_lambda.py
 import json
-import boto3
 import secrets
-import os
 from datetime import datetime, timedelta
 
-dynamodb = boto3.resource('dynamodb')
-users_table = dynamodb.Table('Users')
-reset_tokens_table = dynamodb.Table('PasswordResetTokens')
-ses = boto3.client('ses')
+import boto3
+
+def _get_tables():
+    dynamodb = boto3.resource("dynamodb")
+    return (
+        dynamodb.Table("Users"),
+        dynamodb.Table("PasswordResetTokens"),
+    )
+
+
+def _get_ses():
+    return boto3.client("ses")
 
 API_KEYS = {
     'site_a_key_abc123': {'client_id': 'ClientCustomerC', 'site_id': 'SiteA'},
     'site_b_key_xyz789': {'client_id': 'ClientCustomerA', 'site_id': 'SiteB'}
 }
 
-def pw_reset():
-    """Generate password reset token and send email"""
+def pw_reset(event):
+    """Generate password reset token and send email."""
     try:
         # Validate API key
         api_key = event['headers'].get('x-api-key', '')
@@ -32,6 +38,9 @@ def pw_reset():
         if not email:
             return response(400, {'error': 'Email required'})
         
+        users_table, reset_tokens_table = _get_tables()
+        ses = _get_ses()
+
         # Lookup user
         user_id = f"{tenant['client_id']}#{tenant['site_id']}#{email}"
         

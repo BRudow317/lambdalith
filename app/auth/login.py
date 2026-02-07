@@ -4,16 +4,12 @@ User login Lambda function for multi-tenant application.
 Validates credentials and returns JWT.
 """
 import json
-import bcrypt
-import jwt
 import os
-import boto3
 from datetime import datetime, timedelta
 
-dynamodb = boto3.resource('dynamodb')
-users_table = dynamodb.Table('Users')
-
-JWT_SECRET = os.environ['JWT_SECRET']
+import bcrypt
+import boto3
+import jwt
 JWT_EXPIRY_HOURS = 24
 
 API_KEYS = {
@@ -21,9 +17,22 @@ API_KEYS = {
     'site_b_key_xyz789': {'client_id': 'ClientCustomerA', 'site_id': 'SiteB'}
 }
 
-def login():
-    """Authenticate user and return JWT"""
+def _get_users_table():
+    dynamodb = boto3.resource("dynamodb")
+    return dynamodb.Table("Users")
+
+
+def _get_jwt_secret():
+    jwt_secret = os.environ.get("JWT_SECRET")
+    if not jwt_secret:
+        raise RuntimeError("JWT_SECRET is not configured")
+    return jwt_secret
+
+
+def login(event):
+    """Authenticate user and return JWT."""
     try:
+        users_table = _get_users_table()
         api_key = event['headers'].get('x-api-key', '')
         if api_key not in API_KEYS:
             return response(403, {'error': 'Invalid API key'})
@@ -67,7 +76,7 @@ def login():
             'iat': datetime.utcnow()
         }
         
-        token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
+        token = jwt.encode(payload, _get_jwt_secret(), algorithm='HS256')
         
         # Update last login
         users_table.update_item(

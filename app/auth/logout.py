@@ -1,35 +1,43 @@
 # lambda_logout.py
 import json
-import jwt
 import os
-import boto3
 from datetime import datetime
 
-JWT_SECRET_NAME = os.environ['JWT_SECRET_NAME']
-BLACKLIST_TABLE = os.environ['BLACKLIST_TABLE']
-
-secretsmanager = boto3.client('secretsmanager')
-dynamodb = boto3.resource('dynamodb')
-blacklist_table = dynamodb.Table(BLACKLIST_TABLE)
+import boto3
+import jwt
 
 _jwt_secret = None
 
-def get_jwt_secret():
+def _get_jwt_secret():
     global _jwt_secret
     if _jwt_secret is None:
-        secret_response = secretsmanager.get_secret_value(SecretId=JWT_SECRET_NAME)
+        secret_name = os.environ.get("JWT_SECRET_NAME")
+        if not secret_name:
+            raise RuntimeError("JWT_SECRET_NAME is not configured")
+        secretsmanager = boto3.client("secretsmanager")
+        secret_response = secretsmanager.get_secret_value(SecretId=secret_name)
         secret = json.loads(secret_response['SecretString'])
         _jwt_secret = secret['jwt_secret']
     return _jwt_secret
 
-def logout():
+
+def _get_blacklist_table():
+    table_name = os.environ.get("BLACKLIST_TABLE")
+    if not table_name:
+        raise RuntimeError("BLACKLIST_TABLE is not configured")
+    dynamodb = boto3.resource("dynamodb")
+    return dynamodb.Table(table_name)
+
+
+def logout(event):
     try:
+        blacklist_table = _get_blacklist_table()
         auth_header = event.get('headers', {}).get('authorization', '')
         if not auth_header.startswith('Bearer '):
             return response(401, {'error': 'No token provided'})
         
         token = auth_header.split(' ')[1]
-        payload = jwt.decode(token, get_jwt_secret(), algorithms=['HS256'])
+        payload = jwt.decode(token, _get_jwt_secret(), algorithms=['HS256'])
         
         # Add token to blacklist with TTL matching token expiration
         token_jti = payload.get('jti', token[:16])  # Use partial token if no JTI

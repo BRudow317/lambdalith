@@ -1,5 +1,5 @@
 {
-  "app": "python app.py",
+  "app": "python cdk_app.py",
   "watch": {
     "include": [
       "**"
@@ -8,6 +8,7 @@
       "README.md",
       "cdk*.json",
       "requirements*.txt",
+      "requirements-dev.txt",
       "source.bat",
       "**/__init__.py",
       "**/__pycache__",

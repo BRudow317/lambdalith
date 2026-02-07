@@ -4,13 +4,14 @@ User registration Lambda function for multi-tenant application.
 Validates API key, registers user in DynamoDB with hashed password.
 """
 import json
-import bcrypt
-import boto3
-import uuid
 from datetime import datetime
 
-dynamodb = boto3.resource('dynamodb')
-users_table = dynamodb.Table('Users')
+import bcrypt
+import boto3
+
+def _get_users_table():
+    dynamodb = boto3.resource("dynamodb")
+    return dynamodb.Table("Users")
 
 # API key to tenant mapping
 # ToDo: Move to Secrets Manager or secure storage
@@ -20,9 +21,10 @@ API_KEYS = {
 }
 
 
-def register_user():
-    """Register a new user"""
+def register_user(event):
+    """Register a new user."""
     try:
+        users_table = _get_users_table()
         # Validate API key
         api_key = event['headers'].get('x-api-key', '')
         if api_key not in API_KEYS:

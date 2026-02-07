@@ -1,13 +1,10 @@
 # refresh_token_lambda.py
 import json
-import jwt
 import os
-import boto3
 from datetime import datetime, timedelta, timezone
 
-# Initialize Boto3 client outside handler (reuse connection)
-secrets_client = boto3.client('secretsmanager')
-dynamodb = boto3.resource('dynamodb')
+import boto3
+import jwt
 
 # Env vars from template
 SECRET_NAME = os.environ.get('JWT_SECRET_NAME')
@@ -24,6 +21,9 @@ def get_secret():
         return CACHED_SECRET
     
     try:
+        if not SECRET_NAME:
+            raise RuntimeError("JWT_SECRET_NAME is not configured")
+        secrets_client = boto3.client("secretsmanager")
         response = secrets_client.get_secret_value(SecretId=SECRET_NAME)
         # Parse the JSON string stored in Secrets Manager
         secret_dict = json.loads(response['SecretString'])
@@ -33,8 +33,10 @@ def get_secret():
         print(f"Failed to fetch secret: {e}")
         raise e
 
-def token_refresh():
+def token_refresh(event):
     try:
+        if not USERS_TABLE_NAME:
+            return response(500, {"error": "USERS_TABLE is not configured"})
         # 1. Handle Case-Insensitive Headers
         headers = {k.lower(): v for k, v in event.get('headers', {}).items()}
         auth_header = headers.get('authorization', '')
@@ -70,6 +72,7 @@ def token_refresh():
             return response(400, {'error': 'Token still valid, refresh not needed'})
 
         # 4. SECURITY CHECK: Verify User is still active in DB
+        dynamodb = boto3.resource("dynamodb")
         table = dynamodb.Table(USERS_TABLE_NAME)
         user_record = table.get_item(Key={'user_id': payload['user_id']})
         
