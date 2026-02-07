@@ -1,0 +1,378 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Multi-tenant Auth Service
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.13
+    MemorySize: 256
+    Tracing: Active
+    Environment:
+      Variables:
+        USERS_TABLE: !Ref UsersTable
+        RESET_TOKENS_TABLE: !Ref PasswordResetTokensTable
+        JWT_SECRET_NAME: !Ref JWTSecret
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+
+Resources:
+  # ==================== IAM Role ====================
+  LambdaAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub lambda-auth-service-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+
+  AuthServicePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub auth-service-policy-${Environment}
+      Roles:
+        - !Ref LambdaAuthRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:Query
+              - dynamodb:Scan
+            Resource:
+              - !GetAtt UsersTable.Arn
+              - !Sub ${UsersTable.Arn}/index/*
+              - !GetAtt PasswordResetTokensTable.Arn
+              - !GetAtt LoginAttemptsTable.Arn
+              - !GetAtt TokenBlacklistTable.Arn
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Ref JWTSecret
+          - Effect: Allow
+            Action:
+              - ses:SendEmail
+              - ses:SendRawEmail
+            Resource: '*'
+
+  # ==================== DynamoDB Tables ====================
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      SSESpecification:
+        SSEEnabled: true
+      TableName: !Sub Users-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  PasswordResetTokensTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      SSESpecification:
+        SSEEnabled: true
+      TableName: !Sub PasswordResetTokens-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: reset_token
+          AttributeType: S
+      KeySchema:
+        - AttributeName: reset_token
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  LoginAttemptsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      SSESpecification:
+        SSEEnabled: true
+      TableName: !Sub LoginAttempts-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: identifier
+          AttributeType: S
+      KeySchema:
+        - AttributeName: identifier
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  TokenBlacklistTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      SSESpecification:
+        SSEEnabled: true
+      TableName: !Sub TokenBlacklist-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: token_jti
+          AttributeType: S
+      KeySchema:
+        - AttributeName: token_jti
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ==================== Secrets Manager ====================
+  JWTSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      KmsKeyId: alias/aws/secretsmanager
+      Name: !Sub jwt-secret-${Environment}
+      Description: JWT signing secret for auth service
+      SecretString: !Sub |
+        {
+          "jwt_secret": "CHANGE_THIS_TO_RANDOM_STRING_AFTER_DEPLOY"
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ==================== Lambda Functions ====================
+  RegisterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub auth-register-${Environment}
+      CodeUri: src/register/
+      Handler: register_lambda.lambda_handler
+      Role: !GetAtt LambdaAuthRole.Arn
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - POST
+          AllowHeaders:
+            - '*'
+          MaxAge: 300
+
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub auth-login-${Environment}
+      CodeUri: src/login/
+      Handler: login_lambda.lambda_handler
+      Role: !GetAtt LambdaAuthRole.Arn
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - POST
+          AllowHeaders:
+            - '*'
+          MaxAge: 300
+
+  RefreshTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub auth-refresh-${Environment}
+      CodeUri: src/refresh/
+      Handler: refresh_token_lambda.lambda_handler
+      Role: !GetAtt LambdaAuthRole.Arn
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - POST
+          AllowHeaders:
+            - '*'
+          MaxAge: 300
+
+  PasswordResetRequestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub auth-password-reset-request-${Environment}
+      CodeUri: src/password_reset_request/
+      Handler: password_reset_request_lambda.lambda_handler
+      Role: !GetAtt LambdaAuthRole.Arn
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - POST
+          AllowHeaders:
+            - '*'
+          MaxAge: 300
+
+  PasswordResetConfirmFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub auth-password-reset-confirm-${Environment}
+      CodeUri: src/password_reset_confirm/
+      Handler: password_reset_confirm_lambda.lambda_handler
+      Role: !GetAtt LambdaAuthRole.Arn
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - POST
+          AllowHeaders:
+            - '*'
+          MaxAge: 300
+
+  UserProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub auth-user-profile-${Environment}
+      CodeUri: src/user_profile/
+      Handler: user_profile_lambda.lambda_handler
+      Role: !GetAtt LambdaAuthRole.Arn
+      Environment:
+        Variables:
+          BLACKLIST_TABLE: !Ref TokenBlacklistTable
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - GET
+          AllowHeaders:
+            - '*'
+          MaxAge: 300
+
+  LogoutFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub auth-logout-${Environment}
+      CodeUri: src/logout/
+      Handler: logout_lambda.lambda_handler
+      Role: !GetAtt LambdaAuthRole.Arn
+      Environment:
+        Variables:
+          BLACKLIST_TABLE: !Ref TokenBlacklistTable
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - POST
+          AllowHeaders:
+            - '*'
+          MaxAge: 300
+
+Outputs:
+  RegisterUrl:
+    Description: Register endpoint URL
+    Value: !GetAtt RegisterFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-RegisterUrl
+
+  LoginUrl:
+    Description: Login endpoint URL
+    Value: !GetAtt LoginFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-LoginUrl
+
+  RefreshUrl:
+    Description: Refresh token endpoint URL
+    Value: !GetAtt RefreshTokenFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-RefreshUrl
+
+  PasswordResetRequestUrl:
+    Description: Password reset request endpoint URL
+    Value: !GetAtt PasswordResetRequestFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-PasswordResetRequestUrl
+
+  PasswordResetConfirmUrl:
+    Description: Password reset confirm endpoint URL
+    Value: !GetAtt PasswordResetConfirmFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-PasswordResetConfirmUrl
+
+  UserProfileUrl:
+    Description: User profile endpoint URL
+    Value: !GetAtt UserProfileFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-UserProfileUrl
+
+  LogoutUrl:
+    Description: Logout endpoint URL
+    Value: !GetAtt LogoutFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-LogoutUrl
+
+  UsersTableName:
+    Description: Users DynamoDB table name
+    Value: !Ref UsersTable
+    Export:
+      Name: !Sub ${AWS::StackName}-UsersTable
+
+  JWTSecretArn:
+    Description: JWT Secret ARN
+    Value: !Ref JWTSecret
+    Export:
+      Name: !Sub ${AWS::StackName}-JWTSecret
