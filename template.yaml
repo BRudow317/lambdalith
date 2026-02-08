@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Lambdalith - FastAPI multi-service auth platform
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.13
+    MemorySize: 256
+
+Resources:
+
+  # ---- Secrets ----
+
+  JwtSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${AWS::StackName}/jwt-secret
+      GenerateSecretString:
+        SecretStringTemplate: '{}'
+        GenerateStringKey: jwt_secret
+        PasswordLength: 64
+        ExcludePunctuation: true
+
+  # ---- DynamoDB Tables ----
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-Users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  TokenBlacklistTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-TokenBlacklist
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: token_jti
+          AttributeType: S
+      KeySchema:
+        - AttributeName: token_jti
+          KeyType: HASH
+      TimeToLiveSpecification:
+        Enabled: true
+        AttributeName: ttl
+
+  PasswordResetTokensTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-PasswordResetTokens
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: reset_token
+          AttributeType: S
+      KeySchema:
+        - AttributeName: reset_token
+          KeyType: HASH
+      TimeToLiveSpecification:
+        Enabled: true
+        AttributeName: ttl
+
+  LoginAttemptsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-LoginAttempts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: identifier
+          AttributeType: S
+      KeySchema:
+        - AttributeName: identifier
+          KeyType: HASH
+      TimeToLiveSpecification:
+        Enabled: true
+        AttributeName: ttl
+
+  # ---- Lambda ----
+
+  FastApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handler.handler
+      CodeUri: .
+      FunctionUrlConfig:
+        AuthType: NONE
+      Environment:
+        Variables:
+          JWT_SECRET_NAME: !Ref JwtSecret
+          USERS_TABLE: !Ref UsersTable
+          BLACKLIST_TABLE: !Ref TokenBlacklistTable
+          PASSWORD_RESET_TABLE: !Ref PasswordResetTokensTable
+          LOGIN_ATTEMPTS_TABLE: !Ref LoginAttemptsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TokenBlacklistTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PasswordResetTokensTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LoginAttemptsTable
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref JwtSecret
+
+Outputs:
+  FunctionUrl:
+    Description: Lambda Function URL endpoint
+    Value: !GetAtt FastApiFunctionUrl.FunctionUrl

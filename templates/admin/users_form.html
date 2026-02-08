@@ -1,0 +1,25 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+  <div class="card">
+    <form method="post">
+      <label>
+        Email
+        <input type="email" name="email" required />
+      </label>
+      <label>
+        API Key
+        <input type="text" name="api_key" required />
+      </label>
+      <label>
+        Password
+        <input type="password" name="password" required />
+      </label>
+      <label>
+        Name
+        <input type="text" name="name" />
+      </label>
+      <button type="submit">Submit</button>
+    </form>
+  </div>
+{% endblock %}

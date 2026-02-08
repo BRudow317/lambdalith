@@ -4,9 +4,13 @@ __pycache__
 .pytest_cache
 .venv
 *.egg-info
+*.env*
+docs/
 
 # CDK asset staging directory
 .cdk.staging
 cdk.out
 .trash
 .aws-composer
+*.dev*
+*log*

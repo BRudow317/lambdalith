@@ -1,95 +1,57 @@
-"""
-register_user.py
-User registration Lambda function for multi-tenant application.
-Validates API key, registers user in DynamoDB with hashed password.
-"""
-import json
-from datetime import datetime
+"""User registration."""
 
-import bcrypt
-import boto3
+from datetime import datetime, timezone
 
-def _get_users_table():
-    dynamodb = boto3.resource("dynamodb")
-    return dynamodb.Table("Users")
+from fastapi import APIRouter, Depends, HTTPException
 
-# API key to tenant mapping
-# ToDo: Move to Secrets Manager or secure storage
-API_KEYS = {
-    'site_a_key_abc123': {'client_id': 'ClientCustomerC', 'site_id': 'SiteA'},
-    'site_b_key_xyz789': {'client_id': 'ClientCustomerA', 'site_id': 'SiteB'}
-}
+from ..db import users_table
+from .dependencies import get_tenant
+from .models import RegisterRequest
+from .passwords import hash_password
+
+router = APIRouter()
 
 
-def register_user(event):
-    """Register a new user."""
-    try:
-        users_table = _get_users_table()
-        # Validate API key
-        api_key = event['headers'].get('x-api-key', '')
-        if api_key not in API_KEYS:
-            return response(403, {'error': 'Invalid API key'})
-        
-        tenant = API_KEYS[api_key]
-        
-        # Parse request
-        body = json.loads(event['body'])
-        email = body.get('email', '').lower().strip()
-        password = body.get('password', '')
-        name = body.get('name', '')
-        
-        # Validation
-        if not email or not password:
-            return response(400, {'error': 'Email and password required'})
-        
-        if len(password) < 8:
-            return response(400, {'error': 'Password must be at least 8 characters'})
-        
-        # Check if user already exists for this tenant
-        user_id = f"{tenant['client_id']}#{tenant['site_id']}#{email}"
-        
-        try:
-            existing = users_table.get_item(Key={'user_id': user_id})
-            if 'Item' in existing:
-                return response(409, {'error': 'User already exists'})
-        except:
-            pass
-        
-        # Hash password
-        salt = bcrypt.gensalt()
-        password_hash = bcrypt.hashpw(password.encode('utf-8'), salt)
-        
-        # Create user
-        users_table.put_item(Item={
-            'user_id': user_id,
-            'email': email,
-            'password_hash': password_hash.decode('utf-8'),
-            'name': name,
-            'client_id': tenant['client_id'],
-            'site_id': tenant['site_id'],
-            'created_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat()
-        })
-        
-        return response(201, {
-            'message': 'Registration successful',
-            'user': {
-                'user_id': user_id,
-                'email': email,
-                'name': name
-            }
-        })
-        
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return response(500, {'error': 'Internal server error'})
+@router.post("/register", status_code=201)
+def register(body: RegisterRequest, tenant: dict = Depends(get_tenant)):
+    """Register a new user in the tenant-scoped Users table.
 
-def response(status_code, body):
+    Builds a composite ``user_id`` from the tenant's client/site IDs and the
+    email address, then writes the record to DynamoDB.  Duplicate emails
+    within the same tenant are rejected.
+
+    Args:
+        body: Validated registration payload (email, password, optional name).
+        tenant: Tenant context resolved from the ``x-api-key`` header.
+
+    Returns:
+        A 201 response with a confirmation message and the new user's ID.
+
+    Raises:
+        HTTPException: 409 if a user with the same tenant-scoped email
+            already exists.
+    """
+    table = users_table()
+    email = body.email.lower()
+    user_id = f"{tenant['client_id']}#{tenant['site_id']}#{email}"
+
+    existing = table.get_item(Key={"user_id": user_id})
+    if "Item" in existing:
+        raise HTTPException(status_code=409, detail="User already exists")
+
+    now = datetime.now(timezone.utc).isoformat()
+    table.put_item(Item={
+        "user_id": user_id,
+        "email": email,
+        "password_hash": hash_password(body.password),
+        "name": body.name,
+        "client_id": tenant["client_id"],
+        "site_id": tenant["site_id"],
+        "created_at": now,
+        "updated_at": now,
+    })
+
     return {
-        'statusCode': status_code,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        },
-        'body': json.dumps(body)
+        "message": "Registration successful",
+        "user": {"user_id": user_id, "email": email, "name": body.name},
     }

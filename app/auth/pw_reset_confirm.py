@@ -1,85 +1,63 @@
-# lambda_pw_reset_confirm.py
-import json
-from datetime import datetime
+"""Password reset confirmation."""
 
-import bcrypt
-import boto3
+from datetime import datetime, timezone
 
-def _get_tables():
-    dynamodb = boto3.resource("dynamodb")
-    return (
-        dynamodb.Table("Users"),
-        dynamodb.Table("PasswordResetTokens"),
+from fastapi import APIRouter, HTTPException
+
+from ..db import password_reset_table, users_table
+from .models import PasswordResetConfirm
+from .passwords import hash_password
+
+router = APIRouter()
+
+
+@router.post("/password-reset/confirm")
+def password_reset_confirm(body: PasswordResetConfirm):
+    """Reset a password using a valid reset token.
+
+    Validates the token against the ``PasswordResetTokens`` table,
+    hashes the new password, and updates the user record.  The token
+    is marked as used to prevent replay.
+
+    Args:
+        body: Validated payload containing the reset token and new password.
+
+    Returns:
+        A confirmation message on success.
+
+    Raises:
+        HTTPException: 400 if the token is invalid, expired, or already used.
+    """
+    reset_table = password_reset_table()
+
+    result = reset_table.get_item(Key={"reset_token": body.token})
+    if "Item" not in result:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+
+    token_data = result["Item"]
+
+    if token_data.get("used", False):
+        raise HTTPException(status_code=400, detail="Token already used")
+
+    if datetime.now(timezone.utc).timestamp() > token_data["ttl"]:
+        raise HTTPException(status_code=400, detail="Token expired")
+
+    table = users_table()
+    now = datetime.now(timezone.utc).isoformat()
+
+    table.update_item(
+        Key={"user_id": token_data["user_id"]},
+        UpdateExpression="SET password_hash = :h, updated_at = :u",
+        ExpressionAttributeValues={
+            ":h": hash_password(body.new_password),
+            ":u": now,
+        },
     )
 
-def pw_reset_confirm(event):
-    """Reset password using valid token."""
-    try:
-        users_table, reset_tokens_table = _get_tables()
+    reset_table.update_item(
+        Key={"reset_token": body.token},
+        UpdateExpression="SET used = :u",
+        ExpressionAttributeValues={":u": True},
+    )
 
-        body = json.loads(event['body'])
-        reset_token = body.get('token', '')
-        new_password = body.get('new_password', '')
-        
-        if not reset_token or not new_password:
-            return response(400, {'error': 'Token and new password required'})
-        
-        if len(new_password) < 8:
-            return response(400, {'error': 'Password must be at least 8 characters'})
-        
-        # Validate token
-        try:
-            token_response = reset_tokens_table.get_item(Key={'reset_token': reset_token})
-        except:
-            return response(400, {'error': 'Invalid or expired token'})
-        
-        if 'Item' not in token_response:
-            return response(400, {'error': 'Invalid or expired token'})
-        
-        token_data = token_response['Item']
-        
-        # Check if used
-        if token_data.get('used', False):
-            return response(400, {'error': 'Token already used'})
-        
-        # Check expiry
-        expiry = datetime.fromisoformat(token_data['expires_at'])
-        if datetime.utcnow() > expiry:
-            return response(400, {'error': 'Token expired'})
-        
-        # Hash new password
-        salt = bcrypt.gensalt()
-        password_hash = bcrypt.hashpw(new_password.encode('utf-8'), salt)
-        
-        # Update user password
-        users_table.update_item(
-            Key={'user_id': token_data['user_id']},
-            UpdateExpression='SET password_hash = :hash, updated_at = :updated',
-            ExpressionAttributeValues={
-                ':hash': password_hash.decode('utf-8'),
-                ':updated': datetime.utcnow().isoformat()
-            }
-        )
-        
-        # Mark token as used
-        reset_tokens_table.update_item(
-            Key={'reset_token': reset_token},
-            UpdateExpression='SET used = :used',
-            ExpressionAttributeValues={':used': True}
-        )
-        
-        return response(200, {'message': 'Password reset successful'})
-        
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return response(500, {'error': 'Internal server error'})
-
-def response(status_code, body):
-    return {
-        'statusCode': status_code,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        },
-        'body': json.dumps(body)
-    }
+    return {"message": "Password reset successful"}

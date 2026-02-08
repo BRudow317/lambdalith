@@ -1,0 +1,13 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+  <div class="card">
+    <p>{{ summary }}</p>
+    <dl>
+      {% for key, value in fields.items() %}
+        <dt>{{ key }}</dt>
+        <dd>{{ value }}</dd>
+      {% endfor %}
+    </dl>
+  </div>
+{% endblock %}
