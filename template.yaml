@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Lambdalith - FastAPI multi-service auth platform
+Description: Lambdalith
 
 Globals:
   Function:
@@ -106,6 +106,7 @@ Resources:
           BLACKLIST_TABLE: !Ref TokenBlacklistTable
           PASSWORD_RESET_TABLE: !Ref PasswordResetTokensTable
           LOGIN_ATTEMPTS_TABLE: !Ref LoginAttemptsTable
+          PORTFOLIO_TABLE: "portfolio_personal_data"
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UsersTable
@@ -115,6 +116,8 @@ Resources:
             TableName: !Ref PasswordResetTokensTable
         - DynamoDBCrudPolicy:
             TableName: !Ref LoginAttemptsTable
+        - DynamoDBCrudPolicy:
+            TableName: "portfolio_personal_data"
         - AWSSecretsManagerGetSecretValuePolicy:
             SecretArn: !Ref JwtSecret
 

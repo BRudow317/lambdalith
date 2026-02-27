@@ -5,9 +5,9 @@ from fastapi import APIRouter
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("/ghp")
 def health_root() -> dict:
-    """Basic health response.
+    """Basic health response. For the GitHub Pages brudow317.github.io
 
     Returns:
         ``{"status": "ok"}`` when the Lambda is running.
@@ -15,9 +15,9 @@ def health_root() -> dict:
     return {"status": "ok"}
 
 
-@router.get("/live")
+@router.get("/mlm")
 def live() -> dict:
-    """Liveness probe.
+    """Basic health response. For millerlandman.com
 
     Returns:
         ``{"status": "live"}`` confirming the process is alive.
@@ -25,9 +25,9 @@ def live() -> dict:
     return {"status": "live"}
 
 
-@router.get("/ready")
+@router.get("/cloudvoyages")
 def ready() -> dict:
-    """Readiness probe.
+    """Basic health response for cloudvoyages.com
 
     Returns:
         ``{"status": "ready"}`` confirming the service can accept traffic.

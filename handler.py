@@ -1,4 +1,4 @@
-"""Lambda entrypoint wrapping the FastAPI app."""
+"""Lambda entrypoint wrapper"""
 
 from mangum import Mangum
 

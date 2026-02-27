@@ -1,5 +1,21 @@
 # Cloud Voyages Lambda - Multi-Service Auth Platform
 
+# SAM Prod 
+-------------------------------------------------------------------------------------------------------------- 
+Stack:               lambdalith-prod
+Region:              us-east-1
+Status:              UPDATE_COMPLETE
+Endpoints:           1
+config:              samlconfig.toml
+
+--------------------------------------------------------------------------------------------------------------  
+Key                 FunctionUrl
+Description         Lambda Function URL endpoint
+Value               https://ol263gec4xofofgmrxq6gc3bv40ljmit.lambda-url.us-east-1.on.aws/
+
+--------------------------------------------------------------------------------------------------------------
+
+
 ## Key Updates
 
 - Removed CDK/CloudFormation app scaffolding in favor of SAM.
@@ -14,19 +30,40 @@
 - **Framework**: FastAPI + Mangum (ASGI adapter for Lambda)
 - **Infrastructure**: AWS SAM (`template.yaml`)
 - **Compute**: AWS Lambda with Function URLs (no API Gateway)
-- **Database**: DynamoDB (PAY_PER_REQUEST)
-- **Secrets**: AWS Secrets Manager (JWT signing key)
-- **Dev Environment**: Windows 11, VS Code, Docker Desktop, AWS CLI
+- **Database**: DynamoDB
+- **Secrets**: AWS Secrets Manager (JWT signing key) w/ cookies
 - **Linting**: ruff
-- **Docs**: pdoc (Google-style docstrings)
+- **Docs**: pdoc
 - ToDo Later: SQS, SES, SNS, CloudWatch Events
 
+## Build
+```shell
+# Load venv and environment configs
+python ./.dev/dev_up.py
+# SAM Build
+aws login
+sam validate --lint
+sam build
+# Test Function in the Cloud: 
+sam sync --stack-name {{stack-name}} --watch
+# Deploy
+sam deploy --guided --profile my-cdk-profile
+```
+
+## SAM Local
+```shell
+# Requires A docker desktop container
+# Start local API (runs Lambda in Docker)
+sam local start-api
+# Invoke a function directly 
+sam local invoke
+# with options
+sam local invoke AuthFunction --event events/login.json
+# Sam Logs Tailing
+sam logs --region us-east-1 --stack-name lambdalith --tail
+```
+
 ## Dependencies
-
-### Runtime (`requirements.txt`)
-
-Shipped to Lambda via `sam build`:
-
 - **fastapi** + starlette, pydantic, python-multipart — web framework
 - **mangum** — ASGI adapter translating Lambda events to FastAPI
 - **boto3** + botocore — AWS SDK (DynamoDB, Secrets Manager)
@@ -194,8 +231,7 @@ Get the monolith deployed and working
 - Project structure setup (done)
 - FastAPI + Mangum basic handler (done)
 - SAM template.yaml configuration (done)
-- Local dev environment with uvicorn
-- First deploy to AWS — "hello world" endpoint
+- Prod Deployed (done)
 
 ## Phase 2: Auth Service
 

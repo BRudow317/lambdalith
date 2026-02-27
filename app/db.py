@@ -8,8 +8,14 @@ import boto3
 
 from . import config
 
-_dynamodb = boto3.resource("dynamodb")
+_dynamodb = None
 
+
+def _get_dynamodb():
+    global _dynamodb
+    if _dynamodb is None:
+        _dynamodb = boto3.resource("dynamodb")
+    return _dynamodb
 
 def users_table():
     """Return the Users table resource.
@@ -17,7 +23,16 @@ def users_table():
     Returns:
         A ``boto3.resources.factory.dynamodb.Table`` for the Users table.
     """
-    return _dynamodb.Table(config.USERS_TABLE)
+    return _get_dynamodb().Table(config.USERS_TABLE)
+
+
+def resume_table():
+    """Return the Resume table resource.
+
+    Returns:
+        A ``boto3.resources.factory.dynamodb.Table`` for the Resume table.
+    """
+    return _get_dynamodb().Table(config.RESUME_TABLE)
 
 
 def blacklist_table():
@@ -26,7 +41,7 @@ def blacklist_table():
     Returns:
         A ``boto3.resources.factory.dynamodb.Table`` for revoked JWTs.
     """
-    return _dynamodb.Table(config.BLACKLIST_TABLE)
+    return _get_dynamodb().Table(config.BLACKLIST_TABLE)
 
 
 def password_reset_table():
@@ -35,7 +50,7 @@ def password_reset_table():
     Returns:
         A ``boto3.resources.factory.dynamodb.Table`` for reset tokens.
     """
-    return _dynamodb.Table(config.PASSWORD_RESET_TABLE)
+    return _get_dynamodb().Table(config.PASSWORD_RESET_TABLE)
 
 
 def login_attempts_table():
@@ -44,4 +59,4 @@ def login_attempts_table():
     Returns:
         A ``boto3.resources.factory.dynamodb.Table`` for rate-limiting data.
     """
-    return _dynamodb.Table(config.LOGIN_ATTEMPTS_TABLE)
+    return _get_dynamodb().Table(config.LOGIN_ATTEMPTS_TABLE)

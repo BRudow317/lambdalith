@@ -6,11 +6,19 @@ __pycache__
 *.egg-info
 *.env*
 docs/
-
-# CDK asset staging directory
 .cdk.staging
 cdk.out
 .trash
 .aws-composer
 *.dev*
 *log*
+.ruff_cache
+.trash
+.logs
+.aws-sam
+.aws-sam-ignore
+samconfig.toml
+ruff.toml
+
+tests/
+

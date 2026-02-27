@@ -31,8 +31,9 @@ def register_routes(target: FastAPI) -> None:
     """
     target.include_router(auth_router, prefix="/auth")
     target.include_router(admin_router, prefix="/admin")
-    target.include_router(entity_router, prefix="/user")
+    target.include_router(users_router, prefix="/user")
     target.include_router(health_router, prefix="/health")
+    target.include_router(resume_router, prefix="/resume")
 
 
 register_routes(app)

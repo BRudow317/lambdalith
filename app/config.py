@@ -5,10 +5,12 @@ import os
 
 import boto3
 
-USERS_TABLE = os.environ.get("USERS_TABLE", "Users")
+USERS_TABLE = os.environ.get("USER_TABLE", "Users")
 BLACKLIST_TABLE = os.environ.get("BLACKLIST_TABLE", "TokenBlacklist")
 PASSWORD_RESET_TABLE = os.environ.get("PASSWORD_RESET_TABLE", "PasswordResetTokens")
 LOGIN_ATTEMPTS_TABLE = os.environ.get("LOGIN_ATTEMPTS_TABLE", "LoginAttempts")
+RESUME_TABLE = os.environ.get("RESUME_TABLE", "portfolio_personal_data")
+
 
 JWT_SECRET_NAME = os.environ.get("JWT_SECRET_NAME", "")
 JWT_EXPIRY_HOURS = 24
